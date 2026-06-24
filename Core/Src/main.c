@@ -1163,7 +1163,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, MODEM_ON_OFF_Pin|MEM_ON_OFF_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SLEEP_MODEM_GPIO_Port, SLEEP_MODEM_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(SLEEP_MODEM_GPIO_Port, SLEEP_MODEM_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_VERDE_Pin */
   GPIO_InitStruct.Pin = LED_VERDE_Pin;
