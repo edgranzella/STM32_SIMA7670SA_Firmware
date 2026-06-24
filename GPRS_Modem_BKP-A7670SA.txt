@@ -1,0 +1,120 @@
+Configuration	GPRS_Modem_BKP-A7670SA
+STM32CubeMX 	6.15.0
+Date	05/27/2026
+MCU	STM32F401CCUx
+
+
+
+PERIPHERALS	MODES	FUNCTIONS	PINS
+RCC	Crystal/Ceramic Resonator	RCC_OSC_IN	PH0 - OSC_IN
+RCC	Crystal/Ceramic Resonator	RCC_OSC_OUT	PH1 - OSC_OUT
+RCC	Crystal/Ceramic Resonator	RCC_OSC32_IN	PC14-OSC32_IN
+RCC	Crystal/Ceramic Resonator	RCC_OSC32_OUT	PC15-OSC32_OUT
+RTC	Activate Clock Source	RTC_VS_RTC_Activate	VP_RTC_VS_RTC_Activate
+RTC	Activate Calendar	RTC_VS_RTC_Calendar	VP_RTC_VS_RTC_Calendar
+SYS	Serial Wire	SYS_JTCK-SWCLK	PA14
+SYS	Serial Wire	SYS_JTMS-SWDIO	PA13
+SYS	SysTick	SYS_VS_Systick	VP_SYS_VS_Systick
+USART1	Asynchronous	USART1_RX	PA10
+USART1	Asynchronous	USART1_TX	PA9
+USB_OTG_FS	Host_Only	USB_OTG_FS_DM	PA11
+USB_OTG_FS	Host_Only	USB_OTG_FS_DP	PA12
+
+
+
+Pin Nb	PINs	FUNCTIONs	LABELs
+2	PC13-ANTI_TAMP	GPIO_Output	LED_VERDE
+3	PC14-OSC32_IN	RCC_OSC32_IN	RCC_OSC32_IN
+4	PC15-OSC32_OUT	RCC_OSC32_OUT	RCC_OSC32_OUT
+5	PH0 - OSC_IN	RCC_OSC_IN	
+6	PH1 - OSC_OUT	RCC_OSC_OUT	
+10	PA0-WKUP	GPIO_Input	KEY
+11	PA1	GPIO_Output	WDT_PULSE
+12	PA2*	USART2_TX	USART2_TX
+13	PA3*	USART2_RX	USART2_RX
+14	PA4	GPIO_Output	LedRojoSIM
+15	PA5	GPIO_Output	LedVerdeSIM
+16	PA6	GPIO_Output	LedRojoConexion
+17	PA7	GPIO_Output	LedVerdeConexion
+25	PB12	GPIO_Output	MODEM_ON_OFF
+26	PB13	GPIO_Output	SLEEP_MODEM
+27	PB14	GPIO_Output	MEM_ON_OFF
+28	PB15	GPIO_Input	ConfigPIN
+30	PA9	USART1_TX	UART1_TX
+31	PA10	USART1_RX	UART1_RX
+32	PA11	USB_OTG_FS_DM	USB_DM
+33	PA12	USB_OTG_FS_DP	USB_DP
+34	PA13	SYS_JTMS-SWDIO	
+37	PA14	SYS_JTCK-SWCLK	
+42	PB6*	I2C1_SCL	I2C1_SCL
+43	PB7*	I2C1_SDA	I2C1_SDA
+PERIPHERALS	MODES	FUNCTIONS	PINS
+RCC	Crystal/Ceramic Resonator	RCC_OSC_IN	PH0 - OSC_IN
+RCC	Crystal/Ceramic Resonator	RCC_OSC_OUT	PH1 - OSC_OUT
+RCC	Crystal/Ceramic Resonator	RCC_OSC32_IN	PC14-OSC32_IN
+RCC	Crystal/Ceramic Resonator	RCC_OSC32_OUT	PC15-OSC32_OUT
+RTC	Activate Clock Source	RTC_VS_RTC_Activate	VP_RTC_VS_RTC_Activate
+RTC	Activate Calendar	RTC_VS_RTC_Calendar	VP_RTC_VS_RTC_Calendar
+SYS	Serial Wire	SYS_JTCK-SWCLK	PA14
+SYS	Serial Wire	SYS_JTMS-SWDIO	PA13
+SYS	SysTick	SYS_VS_Systick	VP_SYS_VS_Systick
+USART1	Asynchronous	USART1_RX	PA10
+USART1	Asynchronous	USART1_TX	PA9
+USB_OTG_FS	Host_Only	USB_OTG_FS_DM	PA11
+USB_OTG_FS	Host_Only	USB_OTG_FS_DP	PA12
+
+
+
+Pin Nb	PINs	FUNCTIONs	LABELs
+2	PC13-ANTI_TAMP	GPIO_Output	LED_VERDE
+3	PC14-OSC32_IN	RCC_OSC32_IN	RCC_OSC32_IN
+4	PC15-OSC32_OUT	RCC_OSC32_OUT	RCC_OSC32_OUT
+5	PH0 - OSC_IN	RCC_OSC_IN	
+6	PH1 - OSC_OUT	RCC_OSC_OUT	
+10	PA0-WKUP	GPIO_Input	KEY
+11	PA1	GPIO_Output	WDT_PULSE
+12	PA2*	USART2_TX	USART2_TX
+13	PA3*	USART2_RX	USART2_RX
+14	PA4	GPIO_Output	LedRojoSIM
+15	PA5	GPIO_Output	LedVerdeSIM
+16	PA6	GPIO_Output	LedRojoConexion
+17	PA7	GPIO_Output	LedVerdeConexion
+25	PB12	GPIO_Output	MODEM_ON_OFF
+26	PB13	GPIO_Output	SLEEP_MODEM
+27	PB14	GPIO_Output	MEM_ON_OFF
+28	PB15	GPIO_Input	ConfigPIN
+30	PA9	USART1_TX	UART1_TX
+31	PA10	USART1_RX	UART1_RX
+32	PA11	USB_OTG_FS_DM	USB_DM
+33	PA12	USB_OTG_FS_DP	USB_DP
+34	PA13	SYS_JTMS-SWDIO	
+37	PA14	SYS_JTCK-SWCLK	
+42	PB6*	I2C1_SCL	I2C1_SCL
+43	PB7*	I2C1_SDA	I2C1_SDA
+
+
+
+SOFTWARE PROJECT
+
+Project Settings : 
+Project Name : GPRS_Modem_BKP-A7670SA
+Project Folder : C:\Users\dgranzella\STM32CubeIDE\workspace_1.19.0\GPRS_Modem_BKP-A7670SA
+Toolchain / IDE : STM32CubeIDE
+Firmware Package Name and Version : STM32Cube FW_F4 V1.28.3
+
+
+Code Generation Settings : 
+STM32Cube MCU packages and embedded software packs : Copy only the necessary library files
+Generate peripheral initialization as a pair of '.c/.h' files per peripheral : No
+Backup previously generated files when re-generating : No
+Delete previously generated files when not re-generated : Yes
+Set all free pins as analog (to optimize the power consumption) : No
+
+
+Toolchains Settings : 
+Compiler Optimizations : 
+
+
+
+
+
