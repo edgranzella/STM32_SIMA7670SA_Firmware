@@ -1,0 +1,17 @@
+# Carpetas de compilación (Objetos y binarios autogenerados)
+Debug/
+Release/
+
+# Archivos de salida individuales
+*.o
+*.obj
+*.elf
+*.hex
+*.bin
+*.map
+*.d
+*.su
+
+# Configuraciones locales de la IDE específicas de tu PC
+.settings/
+*.launch
