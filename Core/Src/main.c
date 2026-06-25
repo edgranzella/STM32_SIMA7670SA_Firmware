@@ -3458,8 +3458,8 @@ void Process_CID_Event(char *line)
     if(CID_Parse_Event((uint8_t*)line,strlen(line),&msg))
     {
         Queue_CID_Message(&msg);
-        flags_Comunicaciones |= REC_ABONADO_CID;
         uart1_last_activity = HAL_GetTick();
+        flags_Comunicaciones |= REC_ABONADO_CID;
     }
 }
 
