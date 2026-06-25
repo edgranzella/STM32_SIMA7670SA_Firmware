@@ -730,7 +730,7 @@ void RingBuffer_Clear(void);
 void System_Mode_Task(void);
 
 uint8_t Modem_Send_AT(const char *cmd);
-void Modem_Process_Buffer(void);
+void Modem_URC_Parser(void);
 void Modem_FSM_Run(void);
 void SMS_FSM_Run(void);
 void Bridge_Process(void);
@@ -927,7 +927,7 @@ int main(void)
     	UART1_Process_RingBuffer();
 
     	// 1. Procesar buffer read CDC → generar eventos.
-        Modem_Process_Buffer();
+    	Modem_URC_Parser();
 
         // 2. Ejecutar FSM LTE.
         Modem_FSM_Run();
@@ -1353,7 +1353,7 @@ void Modem_FSM_Run(void)
 			if (flags_FSM_Modem & PDN_STABLE)
 			{
 				// Configuración inicial
-				// Modem_Send_AT("ATE0\r\n");
+				// Modem_Send_AT("ATE0\r\n"); ??? Habilitar y esperar el URC=OK.
 				Modem_Send_AT("AT+CMEE=2\r\n");
 				state_timer = HAL_GetTick();
 				ModemState = ST_SEND_CPIN;
@@ -1681,6 +1681,8 @@ void Modem_FSM_Run(void)
 			{
 			    if(evt == EVT_OK)
 			    {
+			    	// ??? AT+CNTP="time.windows.com",-12 y luego AT+CNTP. el URC es +CNTP: 0 Agregar en el parser de URC.
+			    	// at+cclk? +CCLK: "26/06/25,11:38:35-12" OK ??? para el parser de fecha y hora.
 			    	Modem_Send_AT("AT+CCLK?\r");
 			    	ModemState = ST_GET_TIME;
 			    }
@@ -1704,7 +1706,7 @@ void Modem_FSM_Run(void)
 			    if(evt == EVT_TIME_SYNC_OK)
 			    {
 			        Modem_Log(LOG_RTC_SYNC_OK,0,0);
-					Modem_Send_AT("AT+CPSI?\r\n"); // ??? ¿Implementamos CPSITD?
+					Modem_Send_AT("AT+CPSI?\r\n"); // ??? ¿Para que sirve?
 					state_timer = HAL_GetTick();
 					ModemState = ST_CHECK_CPSI;
 			    }
@@ -1733,6 +1735,7 @@ void Modem_FSM_Run(void)
 				    Modem_Log(LOG_NET_DIAG, lte_diag.cell_id, 0);
 				    // Aquí podrías imprimir lte_diag.band por el puerto serial de debug.
 				    // Siguiente paso: Configuración del APN de Movistar
+				    // AT+CGDCONT=1,IP,internet.movistar.org.ar
 					Modem_Send_AT("AT+CGDCONT=1,\"IP\",\"internet.movistar.org.ar\"\r\n");
 					state_timer = HAL_GetTick();
 					ModemState = ST_ACTIVATE_PDP;
@@ -1811,7 +1814,11 @@ void Modem_FSM_Run(void)
 					// ¡Pila IP abierta con éxito!
 					Modem_Log(LOG_NETOPEN_OK, 0, 0);
 					Modem_Log(LOG_DNS_START,0,0);
+					// AT+CDNSGIP="gprs.eyse.com"
+					// AT+CDNSGIP="gprso.eyse.com"
+					// AT+CDNSGIP="gprs2.eyse.com"
 					snprintf(cmd, sizeof(cmd), "AT+CDNSGIP=\"%s\"\r\n", runtime_cfg.servers[0].server_domain);
+					// ??? Guardar la respuesta en runtime_cfg.servers[0].ip
 					Modem_Send_AT(cmd);
 					dns_pending = 1;
 					state_timer = HAL_GetTick();
@@ -1954,7 +1961,7 @@ void Modem_FSM_Run(void)
 
 					// PASO 15: Enviar el comando de transmisión
 					// Solicitamos enviar 20 bytes al destino
-					// AT+CIPSEND=0,20,"190.111.217.188",57777
+					// AT+CIPSEND=0,10,"190.111.217.188",57777
 					// Modem_Send_AT("AT+CIPSEND=0,20,\"190.111.217.188\",57777\r\n");
 					// ??? La primera vez debe enviarse un Heartbeat de UDP.
 
@@ -2881,7 +2888,7 @@ int Parse_SMS_Index(const char* line)
 /*
  *
  */
-void Modem_Process_Buffer(void)
+void Modem_URC_Parser(void)
 {
     char line[128];
     char dbg[130];
@@ -3170,6 +3177,7 @@ void Modem_Process_Buffer(void)
             HAL_UART_Transmit(&huart1, (uint8_t*)dbg, strlen(dbg), 100);
 			#endif
 
+            flags_FSM_Modem &= ~PDN_STABLE;
             flags_FSM_Modem &= ~PDN_ACTIVE;
             flags_FSM_Modem &= ~SOCKET_OPEN;
         }
@@ -3458,8 +3466,8 @@ void Process_CID_Event(char *line)
     if(CID_Parse_Event((uint8_t*)line,strlen(line),&msg))
     {
         Queue_CID_Message(&msg);
-        uart1_last_activity = HAL_GetTick();
         flags_Comunicaciones |= REC_ABONADO_CID;
+        uart1_last_activity = HAL_GetTick();
     }
 }
 
@@ -3772,6 +3780,8 @@ void Parse_DNS_Response(char *line)
  */
 uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t seq)
 {
+	static uint8_t secuencia;
+
     memset(out, 0, 43);
 
     out[0] = 0x40;
@@ -3811,7 +3821,16 @@ uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t
 
     out[21] = CID_Checksum1(out);
 
-    out[22] = seq;
+    if(seq == 0)
+    {
+    	secuencia = 0;
+    	out[22] = 0;
+    }
+    else
+    {
+    	out[22] = secuencia++;
+    }
+
     out[23] = 0x00;
     out[24] = 0x51;
 
@@ -3828,7 +3847,9 @@ uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t
 
 uint16_t UDP_Build_Heartbeat(CID_Message_t *msg, uint8_t *out, uint32_t serial, uint8_t seq)
 {
-    memset(out, 0, 43);
+	static uint8_t secuencia;
+
+	memset(out, 0, 43);
 
     out[0] = 0x40;
     out[1] = 0xE8;
@@ -3861,7 +3882,16 @@ uint16_t UDP_Build_Heartbeat(CID_Message_t *msg, uint8_t *out, uint32_t serial, 
 
     out[21] = CID_Checksum1(out);
 
-    out[22] = seq;
+    if(seq == 0)
+    {
+    	secuencia = 0;
+    	out[22] = 0;
+    }
+    else
+    {
+    	out[22] = secuencia++;
+    }
+
     out[23] = 0x00;
     out[24] = 0x51;
 
@@ -5649,10 +5679,32 @@ void RTC_Fill_ASCII_DateTime(uint8_t *dst)
     RTC_TimeTypeDef sTime;
     RTC_DateTypeDef sDate;
 
+    uint16_t year;
+
     HAL_RTC_GetTime(&hrtc,&sTime,RTC_FORMAT_BIN);
     HAL_RTC_GetDate(&hrtc,&sDate,RTC_FORMAT_BIN);
 
-    sprintf((char*)dst,"%02u/%02u/%02u %02u:%02u:%02u",sDate.Date,sDate.Month,sDate.Year,sTime.Hours,sTime.Minutes,sTime.Seconds);
+    year = 2000 + sDate.Year;
+
+    dst[0]  = '0' + (sTime.Hours   / 10);
+    dst[1]  = '0' + (sTime.Hours   % 10);
+
+    dst[2]  = '0' + (sTime.Minutes / 10);
+    dst[3]  = '0' + (sTime.Minutes % 10);
+
+    dst[4]  = '0' + (sTime.Seconds / 10);
+    dst[5]  = '0' + (sTime.Seconds % 10);
+
+    dst[6]  = '0' + (sDate.Date    / 10);
+    dst[7]  = '0' + (sDate.Date    % 10);
+
+    dst[8]  = '0' + (sDate.Month   / 10);
+    dst[9]  = '0' + (sDate.Month   % 10);
+
+    dst[10] = '0' + ((year / 1000) % 10);
+    dst[11] = '0' + ((year / 100)  % 10);
+    dst[12] = '0' + ((year / 10)   % 10);
+    dst[13] = '0' + ( year         % 10);
 }
 
 /*
@@ -5670,6 +5722,7 @@ void RTC_Update_From_Modem(uint8_t year,uint8_t month,uint8_t day,uint8_t hour,u
     d.Year    = year;
     d.Month   = month;
     d.Date    = day;
+    d.WeekDay = RTC_WEEKDAY_MONDAY;
 
     HAL_RTC_SetTime(&hrtc,&t,RTC_FORMAT_BIN);
     HAL_RTC_SetDate(&hrtc,&d,RTC_FORMAT_BIN);
@@ -5688,12 +5741,14 @@ void RTC_Set_From_CCLK(const char *line)
     sDate.Month = MM;
     sDate.Date  = dd;
 
+    sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+
     sTime.Hours   = hh;
     sTime.Minutes = mm;
     sTime.Seconds = ss;
 
-    HAL_RTC_SetDate(&hrtc,&sDate,RTC_FORMAT_BIN);
     HAL_RTC_SetTime(&hrtc,&sTime,RTC_FORMAT_BIN);
+    HAL_RTC_SetDate(&hrtc,&sDate,RTC_FORMAT_BIN);
 
     // Debug_Print("\r\n[RTC] Actualizado desde red\r\n");
 }
