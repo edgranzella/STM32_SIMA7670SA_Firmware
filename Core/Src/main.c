@@ -667,6 +667,9 @@ modem_config_t temp_runtime_cfg;
 CID_Message_t last_cid_msg;
 CID_Message_t last_hb_msg;
 
+uint32_t last_cid_tick;
+uint32_t last_hb_tick;
+
 static ParserState_t parserState = PARSER_IDLE;
 static char lineBufferUart1[LINE_BUFFER_SIZE];
 static uint16_t lineIndexUart1 = 0;
@@ -737,9 +740,9 @@ void Bridge_Process(void);
 void Config_Mode_UART_TX_RX(void);
 void Button_Process(void);
 void RTC_Fill_ASCII_DateTime(uint8_t *out);
-void RTC_Update_From_Modem(uint8_t year,uint8_t month,uint8_t day,uint8_t hour,uint8_t minute,uint8_t second);
 void RTC_Set_From_CCLK(const char *line);
 void Debug_Print(const char *str);
+void CID_Init(void);
 void CID_Parser_Byte(uint8_t c);
 void Config_Mode_Parser(uint8_t c);
 void Load_Default_Config(void);
@@ -907,6 +910,7 @@ int main(void)
   Modem_Reset();
 
   LED_Init();
+  CID_Init();
   uart1_last_activity = HAL_GetTick();
   rtc_last_sync = HAL_GetTick();
 
@@ -1964,6 +1968,16 @@ void Modem_FSM_Run(void)
 					// AT+CIPSEND=0,10,"190.111.217.188",57777
 					// Modem_Send_AT("AT+CIPSEND=0,20,\"190.111.217.188\",57777\r\n");
 					// ??? La primera vez debe enviarse un Heartbeat de UDP.
+
+					if(last_cid_msg.type != PKT_NONE)
+					{
+					    /* existe un evento válido */
+					}
+
+					if(last_hb_msg.type != PKT_NONE)
+					{
+					    /* existe un evento válido */
+					}
 
 					char payload_len = 20;
 				    snprintf(cmd, sizeof(cmd), "AT+CIPSEND=0,%u,\"%s\",%u\r\n", payload_len, runtime_cfg.servers[0].ip, runtime_cfg.servers[0].port);
@@ -3486,6 +3500,18 @@ void Process_Heartbeat(char *line)
     }
 }
 
+void CID_Init(void)
+{
+    memset(&last_cid_msg,0,sizeof(last_cid_msg));
+    memset(&last_hb_msg,0,sizeof(last_hb_msg));
+
+    last_cid_msg.type = PKT_NONE;
+    last_hb_msg.type  = PKT_NONE;
+
+    last_cid_tick = HAL_GetTick();
+    last_hb_tick  = HAL_GetTick();
+}
+
 /*
  * Parser Heartbeat.
  */
@@ -3780,8 +3806,6 @@ void Parse_DNS_Response(char *line)
  */
 uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t seq)
 {
-	static uint8_t secuencia;
-
     memset(out, 0, 43);
 
     out[0] = 0x40;
@@ -3790,10 +3814,10 @@ uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t
     char serial_str[9];
     snprintf(serial_str,sizeof(serial_str), "%08lu", serial);
 
-    out[2] = pack_bcd(serial_str[6], serial_str[7]);
-    out[3] = pack_bcd(serial_str[4], serial_str[5]);
-    out[4] = pack_bcd(serial_str[2], serial_str[3]);
-    out[5] = pack_bcd(serial_str[0], serial_str[1]);
+    out[2] = pack_bcd(serial_str[7], serial_str[6]);
+    out[3] = pack_bcd(serial_str[5], serial_str[4]);
+    out[4] = pack_bcd(serial_str[3], serial_str[2]);
+    out[5] = pack_bcd(serial_str[1], serial_str[0]);
 
     out[6] = msg->account[0];
     out[7] = msg->account[1];
@@ -3805,8 +3829,10 @@ uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t
 
     if (msg->qualifier == 'E')
         out[12] = 0x01;
-    else
+    else if (msg->qualifier == 'R')
         out[12] = 0x03;
+    else
+        out[12] = 0x00;
 
     out[13] = msg->event_code[0];
     out[14] = msg->event_code[1];
@@ -3821,15 +3847,7 @@ uint16_t UDP_Build_Event(CID_Message_t *msg,uint8_t *out,uint32_t serial,uint8_t
 
     out[21] = CID_Checksum1(out);
 
-    if(seq == 0)
-    {
-    	secuencia = 0;
-    	out[22] = 0;
-    }
-    else
-    {
-    	out[22] = secuencia++;
-    }
+   	out[22] = seq;
 
     out[23] = 0x00;
     out[24] = 0x51;
@@ -3857,10 +3875,10 @@ uint16_t UDP_Build_Heartbeat(CID_Message_t *msg, uint8_t *out, uint32_t serial, 
     char serial_str[9];
     snprintf(serial_str,sizeof(serial_str),"%08lu", serial);
 
-    out[2] = pack_bcd(serial_str[6], serial_str[7]);
-    out[3] = pack_bcd(serial_str[4], serial_str[5]);
-    out[4] = pack_bcd(serial_str[2], serial_str[3]);
-    out[5] = pack_bcd(serial_str[0], serial_str[1]);
+    out[2] = pack_bcd(serial_str[7], serial_str[6]);
+    out[3] = pack_bcd(serial_str[5], serial_str[4]);
+    out[4] = pack_bcd(serial_str[3], serial_str[2]);
+    out[5] = pack_bcd(serial_str[1], serial_str[0]);
 
     out[6] = msg->account[0];
     out[7] = msg->account[1];
@@ -3882,15 +3900,7 @@ uint16_t UDP_Build_Heartbeat(CID_Message_t *msg, uint8_t *out, uint32_t serial, 
 
     out[21] = CID_Checksum1(out);
 
-    if(seq == 0)
-    {
-    	secuencia = 0;
-    	out[22] = 0;
-    }
-    else
-    {
-    	out[22] = secuencia++;
-    }
+   	out[22] = seq;
 
     out[23] = 0x00;
     out[24] = 0x51;
@@ -5710,24 +5720,6 @@ void RTC_Fill_ASCII_DateTime(uint8_t *dst)
 /*
  *
  */
-void RTC_Update_From_Modem(uint8_t year,uint8_t month,uint8_t day,uint8_t hour,uint8_t minute,uint8_t second)
-{
-    RTC_TimeTypeDef t;
-    RTC_DateTypeDef d;
-
-    t.Hours   = hour;
-    t.Minutes = minute;
-    t.Seconds = second;
-
-    d.Year    = year;
-    d.Month   = month;
-    d.Date    = day;
-    d.WeekDay = RTC_WEEKDAY_MONDAY;
-
-    HAL_RTC_SetTime(&hrtc,&t,RTC_FORMAT_BIN);
-    HAL_RTC_SetDate(&hrtc,&d,RTC_FORMAT_BIN);
-}
-
 void RTC_Set_From_CCLK(const char *line)
 {
     RTC_TimeTypeDef sTime = {0};
