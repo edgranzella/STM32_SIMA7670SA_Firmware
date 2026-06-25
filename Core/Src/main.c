@@ -39,8 +39,7 @@
 #define FLASH_CONFIG_ADDRESS   0x0803C000
 //#define FLASH_CONFIG_ADDRESS 0x08020000UL
 
-#define MODEM_DEBUG_LINES
-//#define MODEM_DEBUG_URC
+#define MODEM_DEBUG_LINES 1
 #define QUEUE_SIZE 16
 #define LINE_BUFFER_SIZE 128
 #define MAX_RETRIES 3
@@ -54,6 +53,7 @@
 #define RING_BUFFER_SIZE 512
 #define BRIDGE_TIMEOUT_MS   60000UL
 #define CONFIG_MAGIC         0xDEADBEEFUL
+//#define MODEM_DEBUG_URC
 //#define CONFIG_MAGIC 0xA7670A55UL
 
 #define CONFIG_STRUCT_VERSION 0x0001
@@ -279,7 +279,6 @@ typedef enum
     SYS_MODE_NORMAL = 0,
     SYS_MODE_BRIDGE,
     SYS_MODE_CONFIG
-
 } SystemMode_t;
 
 typedef enum
@@ -3459,6 +3458,7 @@ void Process_CID_Event(char *line)
     if(CID_Parse_Event((uint8_t*)line,strlen(line),&msg))
     {
         Queue_CID_Message(&msg);
+        flags_Comunicaciones |= REC_ABONADO_CID;
         uart1_last_activity = HAL_GetTick();
     }
 }
@@ -3473,12 +3473,13 @@ void Process_Heartbeat(char *line)
     if(CID_Parse_Heartbeat((uint8_t*)line, strlen(line), &msg))
     {
         Queue_Heartbeat(&msg);
+        flags_Comunicaciones |= REC_ABONADO_HB;
         uart1_last_activity = HAL_GetTick();
     }
 }
 
 /*
- * Parser Heartbeat
+ * Parser Heartbeat.
  */
 uint8_t Is_Heartbeat(char *line)
 {
