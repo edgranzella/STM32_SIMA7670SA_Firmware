@@ -350,8 +350,15 @@ typedef struct __attribute__((aligned(4)))
 
 typedef struct __attribute__((packed))
 {
-    uint32_t timestamp;      // HAL_GetTick()
-    uint16_t event_id;       // código del evento
+    uint16_t year;      // Ej.: 2026
+    uint8_t month;      // 1..12
+    uint8_t day;        // 1..31
+
+    uint8_t hour;       // 0..23
+    uint8_t minute;     // 0..59
+    uint8_t second;     // 0..59
+
+	uint16_t event_id;       // código del evento
     uint32_t param1;
     uint32_t param2;
     uint16_t crc;
@@ -740,6 +747,7 @@ void Bridge_Process(void);
 void Config_Mode_UART_TX_RX(void);
 void Button_Process(void);
 void RTC_Fill_ASCII_DateTime(uint8_t *out);
+void RTC_Get_DateTime(RTC_DateTypeDef *date, RTC_TimeTypeDef *time);
 void RTC_Set_From_CCLK(const char *line);
 void Debug_Print(const char *str);
 void CID_Init(void);
@@ -1007,7 +1015,6 @@ void SystemClock_Config(void)
   * @brief RTC Initialization Function
   * @param None
   * @retval None
-  * ??? tengo que ver cómo funciona el RTC y como se actualiza cada vez que se corta la energía y de que servidor de fecha y hora tomará ese valor.
   */
 static void MX_RTC_Init(void)
 {
@@ -2461,7 +2468,7 @@ void Bridge_Process(void)
 
 	Opción 2: Escribir configuración
 	PC:
-	$CFG,WRITE,9999,<length>,{JSON}*CRC
+	$CFG,WRITE,<length>,{JSON},9999*CRC
 	Respuesta:
 	$CFG,WRITE,OK*CRC
 
@@ -2950,7 +2957,7 @@ void Modem_URC_Parser(void)
                 case 30:
                     // Sin servicio
                 	// 30 -> "NO_NETWORK_SERVICE"
-                	// $ACK,LOGREAD,125,345600,CME_ERROR,30,NO_NETWORK_SERVICE
+                	// $CFG,ACK,LOGREAD,125,345600,CME_ERROR,30,NO_NETWORK_SERVICE
                     break;
 
                 case 515:
@@ -4128,14 +4135,17 @@ void Build_Config_JSON(char *json)
     "\"config_version\":%u,"
     "\"config_timestamp\":\"%s\","
 
-    "\"server1_ip\":\"%s\","
+    "\"server1_domain\":\"%s\","
+ 	"\"server1_ip\":\"%s\","
     "\"server1_port\":%u,"
     "\"server1_proto\":\"%s\","
 
+	"\"server2_domain\":\"%s\","
     "\"server2_ip\":\"%s\","
     "\"server2_port\":%u,"
     "\"server2_proto\":\"%s\","
 
+    "\"server3_domain\":\"%s\","
     "\"server3_ip\":\"%s\","
     "\"server3_port\":%u,"
     "\"server3_proto\":\"%s\","
@@ -4158,14 +4168,17 @@ void Build_Config_JSON(char *json)
     runtime_cfg.config_version,
     runtime_cfg.config_timestamp,
 
+	runtime_cfg.servers[0].server_domain,
     runtime_cfg.servers[0].ip,
     runtime_cfg.servers[0].port,
     runtime_cfg.servers[0].protocol ? "TCP" : "UDP",
 
+ 	runtime_cfg.servers[1].server_domain,
     runtime_cfg.servers[1].ip,
     runtime_cfg.servers[1].port,
     runtime_cfg.servers[1].protocol ? "TCP" : "UDP",
 
+    runtime_cfg.servers[2].server_domain,
     runtime_cfg.servers[2].ip,
     runtime_cfg.servers[2].port,
     runtime_cfg.servers[2].protocol ? "TCP" : "UDP",
@@ -4296,7 +4309,8 @@ uint8_t Verify_Frame_Format(void)
 
 	Respuesta:
 
-	$ACK,LOGINFO,COUNT=152,NEXT=153*XXXX
+	$CFG,ACK,LOGINFO,<COUNT>,<NEXT>*XXXX
+	$CFG,ACK,LOGINFO,152,153*XXXX
 
 	Leer un registro específico
 	$CFG,LOGREAD,25,1234*ABCD
@@ -4308,7 +4322,7 @@ uint8_t Verify_Frame_Format(void)
 
 	Respuesta:
 
-	$ACK,LOGREAD,25,125600,LOG_NET_OPEN_OK,0,0*XXXX
+	$CFG,ACK,LOGREAD,25,125600,LOG_NET_OPEN_OK,0,0*XXXX
 
 	Formato:
 
@@ -4323,7 +4337,7 @@ uint8_t Verify_Frame_Format(void)
 	$LOG,1,1500,LOG_SIGNAL_OK,-73,0
 	$LOG,2,1700,LOG_APN_OK,0,0
 	...
-	$ACK,END
+	$CFG,ACK,END
 
 	Muy útil para descargar todo el histórico.
 
@@ -4332,12 +4346,12 @@ uint8_t Verify_Frame_Format(void)
 
 	Respuesta:
 
-	$ACK,LOGCLEAR
+	$CFG,ACK,LOGCLEAR
 
 	Leer Log Completo:
 	$CFG,LOGDUMP,<password>*CRC
 	Respuesta:
-	$ACK,LOGDUMP,........
+	$CFG,ACK,LOGDUMP,........
 
  */
 /*
@@ -4389,7 +4403,7 @@ void CMD_Log_Info(void)
 {
     char buf[80];
 
-    snprintf(buf,sizeof(buf),"$ACK,LOGINFO,%u,%u\r\n", eeprom_log_count, eeprom_log_head);
+    snprintf(buf,sizeof(buf),"$CFG,ACK,LOGINFO,%u,%u\r\n", eeprom_log_count, eeprom_log_head);
 
     HAL_UART_Transmit(&huart1, (uint8_t *)buf, sizeof(buf), 1000);
 }
@@ -4408,7 +4422,18 @@ void CMD_Log_Read(uint16_t index)
         return;
     }
 
-    snprintf(buf,sizeof(buf),"$ACK,LOGREAD,%u,%lu,%s,%lu,%lu\r\n",index,rec.timestamp,ModemEvent_ToString(rec.event_id),rec.param1,rec.param2);
+    snprintf(buf,sizeof(buf),
+             "$CFG,ACK,LOGREAD,%u,%04u-%02u-%02u %02u:%02u:%02u,%s,%lu,%lu\r\n",
+             index,
+             rec.year,
+             rec.month,
+             rec.day,
+             rec.hour,
+             rec.minute,
+             rec.second,
+             ModemEvent_ToString(rec.event_id),
+             rec.param1,
+             rec.param2);
 
     HAL_UART_Transmit(&huart1, (uint8_t *)buf, sizeof(buf), 1000);
 }
@@ -4472,13 +4497,25 @@ void CMD_Log_Clear(void)
 void Modem_Log(ModemEvent_t event_id, uint32_t param1, uint32_t param2)
 {
     ModemLogRecord_t rec;
+    RTC_DateTypeDef date;
+    RTC_TimeTypeDef time;
 
-    memset(&rec,0,sizeof(rec));
+    RTC_Get_DateTime(&date, &time);
 
-    rec.timestamp = HAL_GetTick();
+    rec.year   = 2000 + date.Year;
+    rec.month  = date.Month;
+    rec.day    = date.Date;
+
+    rec.hour   = time.Hours;
+    rec.minute = time.Minutes;
+    rec.second = time.Seconds;
+
+
     rec.event_id = (uint16_t)event_id;
     rec.param1 = param1;
     rec.param2 = param2;
+
+    memset(&rec,0,sizeof(rec));
 
     EEPROM_Log_Write(&rec);
 
@@ -4927,6 +4964,11 @@ void Parse_JSON_To_Runtime_Config(const char *json)
     ============================================================
     */
 
+    if (JSON_Get_String(json, "server1_domain", temp, sizeof(temp)))
+    {
+    	strncpy(temp_runtime_cfg.servers[0].server_domain, temp, sizeof(temp_runtime_cfg.servers[0].server_domain)-1);
+    }
+
     if (JSON_Get_String(json, "server1_ip", temp, sizeof(temp)))
     {
     	strncpy(temp_runtime_cfg.servers[0].ip, temp, sizeof(temp_runtime_cfg.servers[0].ip)-1);
@@ -4951,6 +4993,11 @@ void Parse_JSON_To_Runtime_Config(const char *json)
     ============================================================
     */
 
+    if (JSON_Get_String(json, "server2_domain", temp, sizeof(temp)))
+    {
+    	strncpy(temp_runtime_cfg.servers[1].server_domain, temp, sizeof(temp_runtime_cfg.servers[1].server_domain)-1);
+    }
+
     if (JSON_Get_String(json, "server2_ip", temp, sizeof(temp)))
     {
     	strncpy(temp_runtime_cfg.servers[1].ip, temp, sizeof(temp_runtime_cfg.servers[1].ip)-1);
@@ -4974,6 +5021,11 @@ void Parse_JSON_To_Runtime_Config(const char *json)
     SERVER 3
     ============================================================
     */
+
+    if (JSON_Get_String(json, "server3_domain", temp, sizeof(temp)))
+    {
+    	strncpy(temp_runtime_cfg.servers[2].server_domain, temp, sizeof(temp_runtime_cfg.servers[2].server_domain)-1);
+    }
 
     if (JSON_Get_String(json, "server3_ip", temp, sizeof(temp)))
     {
@@ -5719,7 +5771,7 @@ void RTC_Fill_ASCII_DateTime(uint8_t *dst)
 
 /*
  *
- */
+| */
 void RTC_Set_From_CCLK(const char *line)
 {
     RTC_TimeTypeDef sTime = {0};
@@ -5744,6 +5796,16 @@ void RTC_Set_From_CCLK(const char *line)
 
     // Debug_Print("\r\n[RTC] Actualizado desde red\r\n");
 }
+
+/*
+ *
+ */
+void RTC_Get_DateTime(RTC_DateTypeDef *date, RTC_TimeTypeDef *time)
+{
+    HAL_RTC_GetTime(&hrtc, time, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, date, RTC_FORMAT_BIN);
+}
+
 
 /* USER CODE END 4 */
 
